@@ -79,6 +79,61 @@ describe('creating and joining', () => {
     expect(errorCode('c1')).toBe('already_in_room');
   });
 
+  describe('a connection whose room pointer went stale', () => {
+    /**
+     * alice creates a room on c1, then the same account opens c1b (a second tab or a refreshed page) and takes
+     * the seat. c1 still remembers the room. c1b leaves, so the room is deleted while c1 still points at it.
+     */
+    async function staleConnection(): Promise<string> {
+      const code = await setupRoom();
+      await h.connect('c1b', 'alice', 'Alice');
+      await h.act('c1b', { action: 'joinRoom', code });
+      await h.act('c1b', { action: 'leaveRoom' });
+      return code;
+    }
+
+    it('lets it create a new room instead of saying already_in_room', async () => {
+      const oldCode = await staleConnection();
+      await h.act('c1', { action: 'createRoom' });
+
+      expect(errorCode('c1')).toBeUndefined();
+      const room = h.room('c1', 'room.created');
+      expect(room.code).not.toBe(oldCode);
+      expect(room.hostId).toBe('alice');
+    });
+
+    it('lets it join a different room', async () => {
+      await staleConnection();
+      await h.connect('c2', 'bob', 'Bob');
+      await h.act('c2', { action: 'createRoom' });
+      const bobsCode = h.room('c2', 'room.created').code;
+
+      await h.act('c1', { action: 'joinRoom', code: bobsCode });
+      expect(errorCode('c1')).toBeUndefined();
+      expect(h.room('c1', 'room.joined').players.map((p) => p.userId).sort()).toEqual(['alice', 'bob']);
+    });
+
+    it('still refuses a connection that really holds a seat in a room', async () => {
+      await setupRoom();
+      await h.act('c1', { action: 'createRoom' });
+      expect(errorCode('c1')).toBe('already_in_room');
+    });
+
+    it('leaving from the stale connection does not take the seat the account holds on another connection', async () => {
+      const code = await setupRoom(2, [['c2', 'bob']]);
+      await h.connect('c1b', 'alice', 'Alice');
+      await h.act('c1b', { action: 'joinRoom', code }); // c1b now owns alice's seat
+
+      await h.act('c1', { action: 'leaveRoom' }); // c1 is stale
+      expect(h.to('c1', 'room.left')).toHaveLength(1);
+      expect(h.to('c2', 'player.left')).toHaveLength(0);
+
+      await h.act('c1b', { action: 'send', type: 'hello', payload: {} });
+      expect(errorCode('c1b')).toBeUndefined();
+      expect(h.to('c2', 'hello')).toHaveLength(1);
+    });
+  });
+
   it('rejects an invalid maxPlayers', async () => {
     await h.connect('c1', 'alice', 'Alice');
     await h.act('c1', { action: 'createRoom', maxPlayers: 9 });

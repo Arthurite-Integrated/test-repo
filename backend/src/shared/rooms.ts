@@ -97,6 +97,20 @@ async function clearConnRoom(deps: Deps, connectionId: string, code: string): Pr
   }
 }
 
+/**
+ * The room this connection really holds a seat in, or undefined. `conn.code` is only a pointer, and it goes
+ * stale when the same account takes the seat on another connection (a second tab, a refreshed page) or when
+ * the room is deleted. A stale pointer is cleared here, so it can never block the connection from creating
+ * or joining a room.
+ */
+async function currentRoomCode(deps: Deps, connectionId: string, conn: ConnItem): Promise<string | undefined> {
+  if (!conn.code) return undefined;
+  const seat = await getPlayer(deps, conn.code, conn.userId);
+  if (seat?.connectionId === connectionId) return conn.code;
+  await clearConnRoom(deps, connectionId, conn.code);
+  return undefined;
+}
+
 function pickHost(players: PlayerItem[]): PlayerItem | undefined {
   return players.find((p) => p.connected) ?? players[0];
 }
@@ -295,7 +309,9 @@ export async function createRoom(
   input: { maxPlayers?: number; displayName?: string },
 ): Promise<RoomView> {
   const conn = await requireConn(deps, connectionId);
-  if (conn.code) throw new RoomError('already_in_room', 'Leave your current room before creating another');
+  if (await currentRoomCode(deps, connectionId, conn)) {
+    throw new RoomError('already_in_room', 'Leave your current room before creating another');
+  }
 
   const maxPlayers = input.maxPlayers ?? DEFAULT_MAX_PLAYERS;
   if (!Number.isInteger(maxPlayers) || maxPlayers < MIN_PLAYERS || maxPlayers > MAX_PLAYERS) {
@@ -353,7 +369,8 @@ export async function joinRoom(
 ): Promise<RoomView> {
   const conn = await requireConn(deps, connectionId);
   const { code } = input;
-  if (conn.code && conn.code !== code) {
+  const current = await currentRoomCode(deps, connectionId, conn);
+  if (current && current !== code) {
     throw new RoomError('already_in_room', 'Leave your current room before joining another');
   }
 
@@ -443,7 +460,11 @@ export async function leaveRoom(deps: Deps, connectionId: string): Promise<void>
   const conn = await requireConn(deps, connectionId);
   if (!conn.code) throw new RoomError('not_in_room', 'You are not in a room');
   const code = conn.code;
-  await removePlayer(deps, code, conn.userId, 'left');
+  // Only give up the seat if this connection holds it. A stale connection just forgets the room, so it
+  // cannot throw out the same account's seat on another connection.
+  if ((await currentRoomCode(deps, connectionId, conn)) === code) {
+    await removePlayer(deps, code, conn.userId, 'left');
+  }
   await deps.send(connectionId, { type: 'room.left', payload: { code } });
 }
 

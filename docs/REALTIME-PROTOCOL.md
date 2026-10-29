@@ -64,7 +64,7 @@ Every message is `{ "type": string, "payload": object, "from"?: string }`. `from
 | `room_full` | The room has `maxPlayers` already |
 | `room_locked` | The game already started and you were not in the room |
 | `not_in_room` | You tried to send, leave or start without being in a room |
-| `already_in_room` | Leave your current room first |
+| `already_in_room` | This connection holds a seat in a room. Leave it first. A connection whose room was deleted, or whose seat the same account took over on another connection (a second tab, a refreshed page), is not blocked: its stale room is forgotten. |
 | `not_host` | Only the host can start |
 | `not_enough_players` | Fewer than 2 connected players |
 | `player_not_found` | The `to` player is not in the room |
