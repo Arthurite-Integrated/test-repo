@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { confirmSignUp, signIn, signUp } from 'aws-amplify/auth';
+import { PasswordField } from './PasswordField';
 
 type Mode = 'signIn' | 'signUp' | 'confirm';
 
@@ -59,17 +60,16 @@ export function AuthPanel({ onSignedIn }: Props) {
             Email
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
           </label>
-          <label>
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
-              minLength={8}
-              required
-            />
-          </label>
+          {/* key: switching between sign in and sign up hides the password again */}
+          <PasswordField
+            key={mode}
+            label="Password"
+            value={password}
+            onChange={setPassword}
+            autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
+            minLength={8}
+            required
+          />
         </>
       )}
 

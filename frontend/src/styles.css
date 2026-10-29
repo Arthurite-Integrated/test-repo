@@ -59,6 +59,27 @@ h2 { font-size: 1.1rem; margin: 0 0 8px; }
 }
 
 label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; }
+
+/* Password input with a show/hide eye button inside its right edge. */
+.password-field { position: relative; display: flex; }
+.password-field input { flex: 1; min-width: 0; padding-right: 48px; }
+.password-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 44px; /* comfortable touch target */
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: none;
+  color: var(--muted);
+  border-radius: 0 8px 8px 0;
+}
+.password-toggle:hover:not(:disabled) { color: var(--text); }
+.password-toggle:focus-visible { outline-offset: -2px; }
+.password-toggle[aria-pressed='true'] { color: var(--accent); }
 
 input {
   font: inherit;
