@@ -1,4 +1,4 @@
-import { CreateTableCommand, DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { CreateTableCommand, DescribeTableCommand, DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import dynalite from 'dynalite';
 import type { AddressInfo } from 'net';
@@ -48,6 +48,13 @@ export async function createHarness(): Promise<Harness> {
       ],
     }),
   );
+  // CreateTable returns before the table is ACTIVE. Wait, or the first write can fail with ResourceNotFoundException.
+  for (let attempt = 0; ; attempt++) {
+    const { Table } = await client.send(new DescribeTableCommand({ TableName: 'realtime-test' }));
+    if (Table?.TableStatus === 'ACTIVE') break;
+    if (attempt >= 200) throw new Error('The local DynamoDB table did not become ACTIVE');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 
   const sent: Sent[] = [];
   const clock = { t: 1_700_000_000_000 };

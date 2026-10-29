@@ -9,7 +9,7 @@
  * Auth is replaced by dev tokens: connect to ws://localhost:8787?token=dev:<userId>:<displayName>.
  * This server is for development only. The deployed API only accepts real Cognito tokens.
  */
-import { CreateTableCommand, DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { CreateTableCommand, DescribeTableCommand, DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { randomUUID } from 'crypto';
 import dynalite from 'dynalite';
@@ -51,6 +51,13 @@ export async function startLocalRealtime(
       ],
     }),
   );
+  // CreateTable returns before the table is ACTIVE. Wait, or the first write can fail with ResourceNotFoundException.
+  for (let attempt = 0; ; attempt++) {
+    const { Table } = await client.send(new DescribeTableCommand({ TableName: 'local-realtime' }));
+    if (Table?.TableStatus === 'ACTIVE') break;
+    if (attempt >= 200) throw new Error('The local DynamoDB table did not become ACTIVE');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 
   const sockets = new Map<string, WebSocket>();
   const deps: Deps = {
